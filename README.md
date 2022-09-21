@@ -183,7 +183,7 @@ Dla HTTP - wykorzystywane są moduły requests oraz BeautifulSoup. Próba listin
 
 Plik bruteForce.py
 
-import paramiko
+'import paramiko
 import ftplib
 import time
 import socket
@@ -372,7 +372,7 @@ def brute_force(hosts_ports_list: dict):
 # # brute_force_FTP(ip)
 # # brute_force_SSH(ip)
 # brute_force(param)
-# # print_list("192.168.10.100")
+# # print_list("192.168.10.100")'
 
 Klasa AtackHttp powstała by móc przeczytać zawartość katalogu strony internetowej.
 Klasa posiada cztery atrybuty:__list_200, __list_403, __link_list oraz __adres, które będziemy wykorzystywać do dalszych czynności. 
